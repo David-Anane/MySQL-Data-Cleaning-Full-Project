@@ -1,0 +1,305 @@
+# MySQL-Data-Cleaning-Full-Project
+
+-- now when we are data cleaning we usually follow a few steps
+-- 1. check for duplicates and remove any
+-- 2. standardize data and fix errors
+-- 3. Remove null or empty values
+-- 4. remove any columns and rows that are not necessary 
+
+# Lets begin our data cleaning journey
+
+SELECT * 
+FROM data_cleaning.layoff_stagging;
+
+-- INSERTING SAME DATA FROM LAYOFF STAGGING INTO LAYOFF STAGGING 2
+CREATE TABLE layoff_stagging2
+LIKE layoff_stagging;
+
+SELECT *
+FROM layoff_stagging2;
+
+INSERT layoff_stagging2
+SELECT *
+FROM layoff_stagging;
+
+-- Finding all specific duplicate values in data
+WITH duplicate_cte AS 
+(
+ SELECT *,
+		ROW_NUMBER() OVER (
+		PARTITION BY company, location, industry, total_laid_off,percentage_laid_off,`date`, stage, country, funds_raised_millions
+			) AS row_num
+	FROM 
+		layoff_stagging
+)
+select* FROM Duplicate_cte
+where row_num >1;
+
+-- Indeed the data we got are duplicate 
+select *
+from layoff_stagging
+where company ='yahoo';
+
+-- deleting like this would not work
+WITH duplicate_cte AS 
+(
+ SELECT *,
+		ROW_NUMBER() OVER (
+		PARTITION BY company, location, industry, total_laid_off,percentage_laid_off,`date`, stage, country, funds_raised_millions
+			) AS row_num
+	FROM 
+		layoff_stagging
+)
+delete
+FROM Duplicate_cte
+where row_num >1;
+
+-- lets create a new table by using the copy to clipboard option
+-- WE ARE DOING THIS SIMPLY SO THAT WE CAN DELETE DUPLICATE VALUES
+CREATE TABLE `layoff_stagging2` (
+  `company` text,
+  `location` text,
+  `industry` text,
+  `total_laid_off` int DEFAULT NULL,
+  `percentage_laid_off` text,
+  `date` text,
+  `stage` text,
+  `country` text,  
+  `funds_raised_millions` int DEFAULT NULL,
+  `row_num` int
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+SELECT *
+FROM layoff_stagging2;
+
+-- NOW LETS INSERT THE DUPLICATE CTE DATA INTO LAYOFF STAGGING 2
+INSERT INTO layoff_stagging2
+ SELECT *,
+		ROW_NUMBER() OVER (
+		PARTITION BY company, location, industry, total_laid_off,percentage_laid_off,`date`, stage, country, funds_raised_millions
+			) AS row_num
+	FROM 
+		layoff_stagging;
+        
+        -- SO IT HAS BEEN SUCCESSFULLY INSERTED
+        
+        -- NOW LETS FILTER TO FIND THE DUPLICATE LEFT AS AT NOW
+SELECT *
+FROM layoff_stagging2
+WHERE row_num >1;
+        
+        -- NOW LETS DELETE THE DUPLICATE
+DELETE
+FROM layoff_stagging2
+WHERE row_num >1;
+  
+  -- DUPLICATES SUCCESSFULLY DELETED FROM LAYOFF_STAGGING 2
+  -- LETS CONFIRM TO SEE IF TRULY DUPLICATE IS DELETED
+SELECT *
+FROM layoff_stagging2;
+
+-- HURRAY WE HAVE SUCCESSFULLY DELETE ALL DUPLICATES FROM LAYOFF_STAGGING2
+-- JUST INCASE YOU STRUGGLE DELETING CLICK ON EDIT, SELECT PREFERENCE AND CLICK ON SQL EDITOR, SCROLL TO THE BUTTOM AND DESELECT THE SAFE UPDATES
+
+-- NOW LETS LOOK AT STANDARDIZING OUR DATA (IT MEANS FINDING ISSUES WITH OUR DATA AND FIXING IT EG. IS TRIMMING UNWANTED SPACES)
+
+-- THIS QUERY WOULD SHOW ALL UNIQUE COMPANY NAMES 
+SELECT distinct(COMPANY)
+FROM layoff_stagging2;
+
+-- NOW LETS TRIM TO REMOVE UNWANTED SPACE 
+SELECT COMPANY, TRIM(COMPANY)
+FROM LAYOFF_STAGGING2;
+
+-- LOOKING GOOD SO NOW LETS UPDATE OUR TRIM INTO THE ORIGINAL STAGGING2 data_cleaning
+ UPDATE LAYOFF_STAGGING2
+ SET COMPANY = TRIM(COMPANY);
+ 
+ -- NOW LETS TAKE A LOOK AT INDUSTRY AND SEE WHAT WE CAN DO THERE
+ SELECT distinct industry
+ from layoff_stagging2
+ order by 1;
+ 
+ -- great but there is some null, blank values that has to be checked also there is confusion with crypto,crypto currency ,cryptocurrency 
+ -- which has to be checked since we looking at distint values 
+ 
+ -- lets detect the cryptos and put them together as one
+ select *
+ from layoff_stagging2
+ where industry like 'Crypto%';
+ 
+ -- great so this query has shown all data associated to crypto, crypto currency, and crytocurrency
+ 
+ -- lets update all cryto, crypto currency, and crytocurrency to all be cryto
+ UPDATE layoff_stagging2
+ SET industry = 'Cryto'
+ where industry like 'Crypto%';
+ 
+ -- great so all crytos has been matched
+ 
+select *
+ from layoff_stagging2
+ where industry like 'Cryto';
+ 
+ UPDATE layoff_stagging2
+ SET industry = 'Crypto'
+ where industry like 'Cryto';
+ 
+ -- sorry about that there was a mispelling i had to correct instead of crypto i updated it as crypto
+ -- now it has been fixed
+
+select *
+ from layoff_stagging2
+ where industry like 'Crypto';
+ 
+ 
+ -- so now lets do a distinct on the industry again to see if our cryto has been fixed
+ SELECT distinct industry
+ from layoff_stagging2;
+ 
+ -- GREAT NOW WE CAN SEE CRYPTO APPEARING ONCE
+ 
+ -- LETS LOOK AT COUNTRY TO FIX ERRORS
+ SELECT DISTINCT COUNTRY
+ FROM layoff_stagging2
+ order by 1;
+
+-- WE CAN SEE THAT UNITED STATES APPEARS TWICE WITH ONE ENDING WITH A DOT WHICH CAN BE AN ISSUE WITH OUR VISUALIZATION SO LETS FIX IT
+SELECT distinct COUNTRY, TRIM(TRAILING '.' FROM COUNTRY)
+FROM layoff_stagging2
+ORDER BY 1;
+
+-- WE USED THE TRAILING TO TRIM FROM BACKWARDS
+
+-- NOW LETS UPDATE STAGGING 2 WITH THE TRAILING COUNTRY DATA WE GOT
+UPDATE LAYOFF_STAGGING2
+SET COUNTRY = TRIM(TRAILING '.' FROM COUNTRY)
+WHERE COUNTRY LIKE 'United States%';
+
+-- NOW LETS CHANGE THE DATE FROM IT BEING TEXT INTO REAL DATE
+SELECT `date` ,
+str_to_date(`date`, '%m/%d/%Y')
+from layoff_stagging2;
+
+-- our date is good now so lets update it
+update layoff_stagging2
+set `date` = str_to_date(`date`, '%m/%d/%Y');
+
+-- great the date is looking good now but still showing text as its data type so lets change it
+-- this command is very strong so try to use not on your real data but a copy of your data
+alter table layoff_stagging2
+modify column `date` date;
+
+-- NOW LETS SEE HOW OUR DATA IS LOOKING
+SELECT * 
+FROM layoff_stagging2;
+
+-- NOW WE GOOD ON THE STANDARDIZATION LETS MOVE TO STEP 3 WHICH IS FINDING NULL VALUES AND FIXING IT
+SELECT *
+FROM layoff_stagging2
+WHERE total_laid_off IS null
+And	 percentage_laid_off is null
+and funds_raised_millions is null;
+
+-- now we have been able to show all null values within our data lets look at distinct values and group liked items
+
+-- but before that lets look at this quickly
+select*
+from layoff_stagging2
+where industry is null
+or industry = '';
+
+-- so here we can see that about 4 rows within industry is null or empty
+-- so lets map it to company colown with that we would be able to know that per each company this is the group or type of industry they belong
+-- for example lets take a look at Airbnb, tally it with location if its the same it means the industry is also the same and all null balues can be replaced with the exact industry
+
+select *
+from layoff_stagging2
+where company = 'Airbnb';
+
+
+-- good so now we can see that both companies are  within the same location so its obvious they also fall within same industry which is travel so lets fix that and make all similar industry
+
+-- but before that we can use this same query to find for bally's interactive, carvana and juul so we see if they also in same location and we can readject industry
+
+select *
+from layoff_stagging2
+where company = 'carvana';
+
+-- so we can see carvana also falls within phoenix country and two of it belongs to transportation industry so lets make all empty or null values in industry transportation too
+
+select *
+from layoff_stagging2
+where company = 'juul';
+
+-- great so juul too falls under industry consumer so lets fill all empty space with consumer for juul 
+
+-- lets try and update Airbnb with the industry 'travel' we would use a different method that is basically like we joining
+-- but in a way that the system is going to filter if layoff_stagging2 distinguesed by t1 and t2 are the same before it makes changes or update to our data
+
+select *
+from layoff_stagging2 t1
+join layoff_stagging2 t2
+on t1.company = t2.company
+and t1.location = t2.location 
+where (t1.industry is Null or t1.industry = '')
+and t2.industry is not null;
+
+-- great so now lets make it specific by filtering out to only our two tables thats the t1.industry and t2.industry coloumn we just joined we that we can compare what the above query did
+
+select t1.industry, T2.industry
+from layoff_stagging2 t1
+join layoff_stagging2 t2
+on t1.company = t2.company
+and t1.location = t2.location 
+where (t1.industry is Null or t1.industry = '')
+and t2.industry is not null;
+
+-- LOOKING GOOD NOW  WE CAN SEE THE COMPARISM CLEARLY SO LETS UPDATE OUR DATA TO REMOVE ALL NuLLS FROM  OUR COMPARISON SO FAR
+
+-- before we can do the null fill in we have to try and update our data where there are empty spaces to null balues first before our setting of t1.industry to t2.industry to work
+update layoff_stagging2
+set industry = null
+where industry = '';
+
+-- great so now we have replaced all empty spaces with null so that our next query can easily work
+
+update layoff_stagging2 t1
+join layoff_stagging2 t2
+on t1.company = t2.company
+set t1.industry = t2.industry 
+where t1.industry is Null 
+and t2.industry is not null;
+
+-- great so now all our industries which were null has been filled 
+-- we can quickly confirm with our company airbnb
+SELECT 
+    *
+FROM
+    layoff_stagging2
+WHERE
+    company = 'airbnb';
+    
+    -- we can see that airbnb industry has been updated
+    -- but Bally's Interactive still shows null at industry this is so because it is the only company in the data and didnt come with its industry meaning if we had two Bally's Interactive it would have updated the industries
+    
+    -- to confirm lets write this query
+select * 
+from layoff_stagging2
+where company like 'bally%';
+
+-- so it clearl pulled out only one report
+-- lets look at our new data now
+select *
+from  layoff_stagging2
+WHERE total_laid_off IS null
+And	 percentage_laid_off is null
+and funds_raised_millions is null;
+
+-- there is a row_num coloumn that we no more need so lets work on dropping this coloum
+alter table layoff_stagging2
+Drop column row_num ;
+
+-- great we have drop the row_num column now
+-- this is it we have finally achieve the goal for this project
+
